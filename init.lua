@@ -159,6 +159,17 @@ vim.opt.scrolloff = 10
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
+--
+-- use jk to go to the normal mode
+vim.keymap.set('i', 'jk', '<Esc>')
+
+-- use the C-s to save
+vim.keymap.set('i', '<C-s>', '<C-o>:w<CR>')
+vim.keymap.set('n', '<C-s>', ':w<CR>')
+
+-- use <leader> / to toggle comment
+vim.keymap.set('n', '<C-/>', 'gcc', { desc = 'toggle comment', remap = true })
+vim.keymap.set('v', '<C-/>', 'gc', { desc = 'toggle comment', remap = true })
 
 -- Clear highlights on search when pressing <Esc> in normal mode
 --  See `:help hlsearch`
