@@ -23,4 +23,21 @@ return {
       { '<leader>x', '<Cmd>BufferClose<CR>', desc = 'Close the current buffer', silent = true, noremap = true },
     },
   },
+  {
+    -- This will help in navigation between tmux panes and neovim buffers
+    'christoomey/vim-tmux-navigator',
+    cmd = {
+      'TmuxNavigateLeft',
+      'TmuxNavigateDown',
+      'TmuxNavigateUp',
+      'TmuxNavigateRight',
+      'TmuxNavigatePrevious',
+    },
+    keys = {
+      { '<c-h>', '<cmd><C-U>TmuxNavigateLeft<cr>', desc = 'Go to the left pane' },
+      { '<c-j>', '<cmd><C-U>TmuxNavigateDown<cr>', desc = 'Go to the bottome pane' },
+      { '<c-k>', '<cmd><C-U>TmuxNavigateUp<cr>', desc = 'Go to the top pane' },
+      { '<c-l>', '<cmd><C-U>TmuxNavigateRight<cr>', desc = 'Go to the right pane' },
+    },
+  },
 }
