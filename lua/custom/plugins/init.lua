@@ -40,4 +40,46 @@ return {
       { '<c-l>', '<cmd><C-U>TmuxNavigateRight<cr>', desc = 'Go to the right pane' },
     },
   },
+
+  {
+    -- Git plugin
+    'tpope/vim-fugitive',
+  },
+
+  {
+    -- auto tag for html and stuff
+    'windwp/nvim-ts-autotag',
+    ft = {
+      'javascript',
+      'typescript',
+      'javascriptreact',
+      'typescriptreact',
+    },
+    opts = {},
+  },
+
+  {
+    'ThePrimeagen/harpoon',
+    branch = 'harpoon2',
+    dependencies = { 'nvim-lua/plenary.nvim', 'nvim-telescope/telescope.nvim' },
+    config = function()
+      local harpoon = require 'harpoon'
+      harpoon:setup {}
+
+      vim.keymap.set('n', '<leader>a', function()
+        harpoon:list():add()
+      end, { desc = '[A]dd new item to the harpoon' })
+      vim.keymap.set('n', '<leader>e', function()
+        harpoon.ui:toggle_quick_menu(harpoon:list())
+      end, { desc = 'Harpoon m[e]nu' })
+
+      -- Toggle previous & next buffers stored within Harpoon list
+      vim.keymap.set('n', '<C-[>', function()
+        harpoon:list():prev { ui_nav_wrap = true }
+      end, { desc = 'Next harpoon item' })
+      vim.keymap.set('n', '<C-]>', function()
+        harpoon:list():next { ui_nav_wrap = true }
+      end, { desc = 'Prev harpoon item' })
+    end,
+  },
 }
