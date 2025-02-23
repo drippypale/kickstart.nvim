@@ -104,6 +104,23 @@ vim.opt.number = true
 --  Experiment for yourself to see if you like it!
 vim.opt.relativenumber = true
 
+-- Set a vertical line to indicate the maximum width of a lines
+-- vim.opt.colorcolumn = '80'
+local set_colorcolumn = function()
+  local ft = vim.bo.filetype
+  if ft == 'markdown' then
+    vim.opt_local.colorcolumn = '100'
+  else
+    vim.opt_local.colorcolumn = '80'
+  end
+end
+vim.api.nvim_create_augroup('DynamicColorColumn', { clear = true })
+vim.api.nvim_create_autocmd({ 'BufEnter', 'FileType' }, {
+  pattern = '*',
+  callback = set_colorcolumn,
+  group = 'DynamicColorColumn',
+})
+
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
 
@@ -120,6 +137,13 @@ end)
 
 -- Enable break indent
 vim.opt.breakindent = true
+
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'markdown',
+  callback = function()
+    vim.opt_local.conceallevel = 1
+  end,
+})
 
 -- Save undo history
 vim.opt.undofile = true
@@ -145,8 +169,8 @@ vim.opt.splitbelow = true
 -- Sets how neovim will display certain whitespace characters in the editor.
 --  See `:help 'list'`
 --  and `:help 'listchars'`
-vim.opt.list = true
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+vim.opt.list = false
+-- vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
 
 -- Preview substitutions live, as you type!
 vim.opt.inccommand = 'split'
@@ -156,6 +180,16 @@ vim.opt.cursorline = true
 
 -- Minimal number of screen lines to keep above and below the cursor.
 vim.opt.scrolloff = 10
+
+-- change tab settings for go files
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'go',
+  callback = function()
+    vim.opt_local.tabstop = 2 -- Number of spaces that a <Tab> in the file counts for
+    vim.opt_local.shiftwidth = 2 -- Number of spaces to use for each step of (auto)indent
+    vim.opt_local.expandtab = true -- Use spaces instead of tabs
+  end,
+})
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -426,6 +460,7 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
 
       vim.keymap.set('n', '<leader>sl', builtin.git_commits, { desc = '[S]earch git commits.' })
+      vim.keymap.set('n', '<leader>sc', builtin.commands, { desc = '[S]earch [C]ommands.' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -562,7 +597,14 @@ require('lazy').setup({
           --  For example, in C this would take you to the header.
           map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
 
-          map('ss', vim.lsp.buf.signature_help, 'Shows the signature')
+          vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(vim.lsp.handlers.signature_help, {
+            focusable = true, -- Allow the floating window to be focusable
+          })
+
+          -- Keybinding to focus the signature help floating window
+          vim.keymap.set('n', 'ss', function()
+            vim.lsp.buf.signature_help()
+          end, { desc = '[S]how Signature Help' })
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -645,7 +687,18 @@ require('lazy').setup({
             },
           },
         },
-        pyright = {},
+        pyright = {
+          -- settings = {
+          --   python = {
+          --     analysis = {
+          --       typeCheckingMode = 'basic',
+          --       autoSearchPaths = true,
+          --       useLibraryCodeForTypes = true,
+          --       reportMissingTypeStubs = false,
+          --     },
+          --   },
+          -- },
+        },
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -656,6 +709,21 @@ require('lazy').setup({
         ts_ls = {},
         tailwindcss = {},
         eslint = {},
+        jsonls = {
+          -- lazy-load schemastore when needed
+          on_new_config = function(new_config)
+            new_config.settings.json.schemas = new_config.settings.json.schemas or {}
+            vim.list_extend(new_config.settings.json.schemas, require('schemastore').json.schemas())
+          end,
+          settings = {
+            json = {
+              format = {
+                enable = true,
+              },
+              validate = { enable = true },
+            },
+          },
+        },
 
         lua_ls = {
           -- cmd = {...},
@@ -687,6 +755,10 @@ require('lazy').setup({
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
         'prettierd',
+        -- 'markdownlint',
+        'texlab',
+        'latexindent',
+        'jq',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -711,7 +783,7 @@ require('lazy').setup({
     cmd = { 'ConformInfo' },
     keys = {
       {
-        '<leader>f',
+        '<leader>ff',
         function()
           require('conform').format { async = true, lsp_format = 'fallback' }
         end,
@@ -743,6 +815,13 @@ require('lazy').setup({
         typescript = { 'prettierd', 'prettier', stop_after_first = true },
         typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
         javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        json = { 'jq' },
+        go = {
+          'goimports',
+          'gofumpt',
+          'golines',
+        },
+        latex = { 'latexindent' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -873,13 +952,15 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    -- 'folke/tokyonight.nvim',
+    'catppuccin/nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     init = function()
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      -- vim.cmd.colorscheme 'tokyonight-night'
+      vim.cmd.colorscheme 'catppuccin-mocha'
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
@@ -949,6 +1030,8 @@ require('lazy').setup({
         'javascript',
         'typescript',
         'tsx',
+        'json5',
+        'java',
       },
       -- Autoinstall languages that are not installed
       auto_install = true,
@@ -957,9 +1040,9 @@ require('lazy').setup({
         -- Some languages depend on vim's regex highlighting system (such as Ruby) for indent rules.
         --  If you are experiencing weird indenting issues, add the language to
         --  the list of additional_vim_regex_highlighting and disabled languages for indent.
-        additional_vim_regex_highlighting = { 'ruby' },
+        additional_vim_regex_highlighting = { 'ruby', 'go' },
       },
-      indent = { enable = true, disable = { 'ruby' } },
+      indent = { enable = true, disable = { 'ruby', 'go' } },
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
@@ -1016,6 +1099,19 @@ require('lazy').setup({
     },
   },
 })
+
+-- Make the background of the editor transparent
+vim.cmd [[
+  highlight Normal guibg=none
+  highlight NonText guibg=none
+  highlight Normal ctermbg=none
+  highlight NonText ctermbg=none
+]]
+
+-- Clear cursorline highlight
+vim.cmd [[ 
+  hi clear CursorLine
+]]
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
