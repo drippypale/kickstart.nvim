@@ -1,0 +1,142 @@
+local M = {}
+
+-- Import the bit library for bitwise operations
+local bit = require 'bit'
+
+-- Namespace for virtual text overlays
+local ns_id = vim.api.nvim_create_namespace 'nvim_rtl'
+
+-- UTF-8 Iterator
+local function utf8_iter(s)
+  local i = 1
+  local len = #s
+  return function()
+    if i > len then
+      return nil
+    end
+    local c = s:byte(i)
+    local size = 1
+    if c >= 0xF0 then
+      size = 4
+    elseif c >= 0xE0 then
+      size = 3
+    elseif c >= 0xC0 then
+      size = 2
+    end
+    local char = s:sub(i, i + size - 1)
+    i = i + size
+    return char
+  end
+end
+
+-- Check if a character is Persian
+local function is_persian_char(char)
+  local code = 0
+  local c1, c2, c3, c4 = char:byte(1, 4)
+  if #char == 1 then
+    code = c1
+  elseif #char == 2 then
+    code = bit.bor(bit.lshift(bit.band(c1, 0x1F), 6), bit.band(c2, 0x3F))
+  elseif #char == 3 then
+    code = bit.bor(bit.lshift(bit.band(c1, 0x0F), 12), bit.lshift(bit.band(c2, 0x3F), 6), bit.band(c3, 0x3F))
+  elseif #char == 4 then
+    code = bit.bor(bit.lshift(bit.band(c1, 0x07), 18), bit.lshift(bit.band(c2, 0x3F), 12), bit.lshift(bit.band(c3, 0x3F), 6), bit.band(c4, 0x3F))
+  end
+  return (code >= 0x0600 and code <= 0x06FF) or (code >= 0x0750 and code <= 0x077F)
+end
+
+-- Reverse UTF-8 strings
+local function utf8reverse(s)
+  local chars = {}
+  for c in utf8_iter(s) do
+    table.insert(chars, 1, c)
+  end
+  return table.concat(chars)
+end
+
+-- Check if text contains Persian characters
+local function contains_persian(text)
+  for char in utf8_iter(text) do
+    if is_persian_char(char) then
+      return true
+    end
+  end
+  return false
+end
+
+-- Reverse Persian segments in a line
+local function reverse_persian_segments(line)
+  local result = ''
+  local current_segment = ''
+  local in_persian = false
+
+  for char in utf8_iter(line) do
+    if is_persian_char(char) then
+      if not in_persian then
+        -- Append the previous non-Persian segment
+        result = result .. current_segment
+        current_segment = ''
+        in_persian = true
+      end
+      current_segment = current_segment .. char
+    else
+      if in_persian then
+        -- Reverse and append the Persian segment
+        result = result .. utf8reverse(current_segment)
+        current_segment = ''
+        in_persian = false
+      end
+      current_segment = current_segment .. char
+    end
+  end
+
+  -- Append any remaining segment
+  if in_persian then
+    result = result .. utf8reverse(current_segment)
+  else
+    result = result .. current_segment
+  end
+
+  return result
+end
+
+function M.update_line(bufnr, line_nr)
+  local line = vim.api.nvim_buf_get_lines(bufnr, line_nr, line_nr + 1, false)[1]
+  if contains_persian(line) then
+    local reversed_line = reverse_persian_segments(line)
+    vim.api.nvim_buf_set_extmark(bufnr, ns_id, line_nr, 0, {
+      virt_text = { { reversed_line, 'Normal' } },
+      virt_text_pos = 'overlay',
+      hl_mode = 'combine',
+    })
+  end
+end
+
+function M.update_buffer(bufnr)
+  vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
+  for line_nr = 0, line_count - 1 do
+    M.update_line(bufnr, line_nr)
+  end
+end
+
+function M.attach_to_buffer(bufnr)
+  M.update_buffer(bufnr)
+
+  vim.api.nvim_buf_attach(bufnr, false, {
+    on_lines = vim.schedule_wrap(function()
+      M.update_buffer(bufnr)
+    end),
+  })
+end
+
+function M.setup()
+  vim.cmd [[
+    augroup NvimRTL
+      autocmd!
+      autocmd BufReadPost,BufWritePost,TextChanged,TextChangedI * lua require('nvim-rtl').attach_to_buffer(vim.fn.bufnr('%'))
+    augroup END
+  ]]
+end
+
+return M
